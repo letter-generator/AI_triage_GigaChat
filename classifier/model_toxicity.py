@@ -35,7 +35,6 @@ def analyze_toxicity(text: str) -> Dict[str, Any]:
         logits = model(**inputs).logits
         probs = torch.softmax(logits, dim=-1).cpu().numpy()[0]
     
-    # Индексы: 0 - OK, 1 - Toxic, 2 - Severe toxic, 3 - Risks
     labels = {
         0: "OK - безопасно",
         1: "TOXIC - оскорбительно",

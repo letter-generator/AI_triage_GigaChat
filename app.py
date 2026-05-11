@@ -6,8 +6,8 @@ from datetime import datetime
 import ast
 
 from classifier.retrieval import retrieve_similar_goals
-from classifier.qwen import classify_with_qwen          
-from classifier.local_toxicity import analyze_toxicity
+from classifier.model_vm import classify_vm_model        
+from classifier.model_toxicity import analyze_toxicity
 from database import (
     init_db, create_session, delete_session, rename_session,
     get_all_sessions, get_messages, save_message, export_session_messages
@@ -86,7 +86,7 @@ with st.sidebar:
                         delete_current_chat()
                 st.rerun()
     st.markdown("---")
-    # Экспорт текущего чата
+  
     df_exp = export_session_messages(st.session_state.current_session_id)
     if not df_exp.empty:
         csv_data = df_exp.to_csv(index=False).encode('utf-8')
@@ -99,11 +99,9 @@ with st.sidebar:
     else:
         st.info("Нет данных для экспорта")
 
-# ---------- Основная область ----------
 st.title("AI-агентная система red teaming и контроль ответов LLM GigaChat")
-st.write("Выберите чат слева или создайте новый. Все диалоги сохраняются в БД.")
+st.write("Выберите чат слева или создайте новый. Все диалоги сохраняются.")
 
-# Загрузка сообщений текущего чата
 if st.session_state.current_session_id not in st.session_state.messages_cache:
     msgs = get_messages(st.session_state.current_session_id)
     formatted = []
@@ -118,7 +116,6 @@ if st.session_state.current_session_id not in st.session_state.messages_cache:
         })
     st.session_state.messages_cache[st.session_state.current_session_id] = formatted
 
-# Отображение истории текущего чата
 for message in st.session_state.messages_cache[st.session_state.current_session_id]:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -126,11 +123,11 @@ for message in st.session_state.messages_cache[st.session_state.current_session_
             if "label" in message:
                 reason = message.get("reason", "не указана")
                 if message["label"] == 1:
-                    st.warning(f"⚠ Оценка Qwen: **подозрительный ответ**\n\nПричина: {reason}")
+                    st.warning(f"⚠ **Подозрительный ответ**\n\nПричина: {reason}")
                 elif message["label"] == 0:
-                    st.success(f"✓ Оценка Qwen: **валидный ответ**\n\nПричина: {reason}")
+                    st.success(f"✓ **Валидный ответ**\n\nПричина: {reason}")
                 else:
-                    st.info(f"⍰ Оценка Qwen не определена\n\n{reason}")
+                    st.info(f"⍰ Оценка не определена\n\n{reason}")
             if "toxicity" in message and message["toxicity"]:
                 tox = message["toxicity"]
                 if tox["label"] != 0:
@@ -138,7 +135,6 @@ for message in st.session_state.messages_cache[st.session_state.current_session_
                 else:
                     st.success(f"**Анализ токсичности.** {tox['explanation']}")
 
-# ---------- Поля ввода API-ключей ----------
 gigachat_api_key = st.text_input(
     "GigaChat API Key",
     type="password",
@@ -149,7 +145,6 @@ gigachat_api_key = st.text_input(
 if not gigachat_api_key:
     st.info("Пожалуйста, введите API-ключ GigaChat для продолжения.", icon="🔑")
 else:
-    # ---------- Токен GigaChat ----------
     def get_gigachat_token(auth_key: str) -> Optional[str]:
         url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
         headers = {
@@ -213,18 +208,15 @@ else:
 
     # ---------- Поле ввода нового сообщения ----------
     if prompt := st.chat_input("Введите сообщение..."):
-        # Добавляем сообщение пользователя в кэш и отображаем
         st.session_state.messages_cache[st.session_state.current_session_id].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # История для GigaChat (все сообщения текущего чата)
         api_messages = [
             {"role": m["role"], "content": m["content"]}
             for m in st.session_state.messages_cache[st.session_state.current_session_id]
         ]
 
-        # Ответ ассистента
         with st.chat_message("assistant"):
             with st.spinner("GigaChat печатает..."):
                 response_placeholder = st.empty()
@@ -234,16 +226,15 @@ else:
                     response_placeholder.markdown(full_response + "▌")
                 response_placeholder.markdown(full_response)
 
-        # Классификация через Qwen (на ВМ)
-        with st.spinner("Оценка ответа через Qwen (ВМ)..."):
-            similar = retrieve_similar_goals(prompt, k=3)
-            label, reason = classify_with_qwen(prompt, full_response, similar)   # ключ не нужен
 
-        # Локальный анализ токсичности
-        with st.spinner("Анализ ответа локальной моделью..."):
+        with st.spinner("Анализ токсичности..."):
             toxicity = analyze_toxicity(full_response)
+        context = f"Результат анализа токсичности: {toxicity.get('explanation', '')}"
 
-        # Сохраняем в кэш
+        with st.spinner("Оценка ответа классификатором..."):
+            similar = retrieve_similar_goals(prompt, k=3)
+            label, reason = classify_vm_model(prompt, full_response, similar, context=context)
+
         st.session_state.messages_cache[st.session_state.current_session_id].append({
             "role": "assistant",
             "content": full_response,
@@ -252,7 +243,7 @@ else:
             "toxicity": toxicity
         })
 
-        # Сохраняем в БД
+
         save_message(
             session_id=st.session_state.current_session_id,
             user_prompt=prompt,
@@ -262,13 +253,12 @@ else:
             toxicity_details=toxicity
         )
 
-        # Отображаем оценки
         if label == 1:
-            st.warning(f"⚠ Оценка Qwen: **подозрительный ответ**\n\nПричина: {reason}")
+            st.warning(f"⚠ **Подозрительный ответ**\n\nПричина: {reason}")
         elif label == 0:
-            st.success(f"✓ Оценка Qwen: **валидный ответ**\n\nПричина: {reason}")
+            st.success(f"✓ **Валидный ответ**\n\nПричина: {reason}")
         else:
-            st.info(f"⍰ Оценка Qwen не определена\n\n{reason}")
+            st.info(f"⍰ Оценка не определена\n\n{reason}")
 
         if toxicity["label"] != 0:
             st.error(f"**Анализ токсичности.** {toxicity['explanation']}")

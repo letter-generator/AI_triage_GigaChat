@@ -1,28 +1,18 @@
-# Виртуальное окружение
 .venv/
 venv/
 env/
 
-
 *.db
 *.csv
-!dataset_example.csv   
-
-# Сохранённые модели
 *.pkl
 *.docx
 *.xlsx
 *.ppt
 
-
-
-# Кэш Python
 __pycache__/
 *.pyc
 
-# Настройки IDE
 .vscode/
 .idea/
 
-# Локальные настройки Streamlit
 .streamlit/secrets.toml
