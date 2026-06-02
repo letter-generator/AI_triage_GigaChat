@@ -4,9 +4,15 @@ import json
 from typing import Optional
 from datetime import datetime
 import ast
+
+
+try:
+    from classifier.retrieval import retrieve_similar_goals
+except Exception:
+    def retrieve_similar_goals(*args, **kwargs):
+        return []
+
 from classifier.model_or import classify_with_openrouter
-from classifier.retrieval import retrieve_similar_goals
-from classifier.model_vm import classify_vm_model
 from classifier.model_toxicity import analyze_toxicity
 from database import (
     init_db, create_session, delete_session, rename_session,
@@ -57,7 +63,6 @@ def create_new_chat():
 
 
 def delete_chat(sid):
-    """Удаляет сессию и при необходимости переключает на другую."""
     delete_session(sid)
     refresh_sessions()
     if st.session_state.current_session_id == sid:
@@ -91,7 +96,6 @@ def get_gigachat_token(auth_key: str) -> Optional[str]:
 
 
 def ensure_token() -> Optional[str]:
-    """Возвращает актуальный токен. Если нет — получает новый."""
     if not st.session_state.gigachat_token:
         with st.spinner("Получение токена GigaChat..."):
             token = get_gigachat_token(st.session_state.gigachat_api_key)
@@ -104,7 +108,6 @@ def ensure_token() -> Optional[str]:
 
 
 def refresh_token() -> Optional[str]:
-    """Принудительно перевыпускает токен (при 401)."""
     with st.spinner("Обновление токена GigaChat..."):
         token = get_gigachat_token(st.session_state.gigachat_api_key)
     if token:
@@ -116,10 +119,6 @@ def refresh_token() -> Optional[str]:
 
 # ---------- Вызов GigaChat ----------
 def gigachat_stream(messages: list, access_token: str):
-    """
-    Генератор чанков ответа GigaChat.
-    Каждый yield: (chunk_text, is_error, need_reauth)
-    """
     url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -163,10 +162,6 @@ def gigachat_stream(messages: list, access_token: str):
 
 
 def call_gigachat(api_messages: list) -> tuple:
-    """
-    Вызывает GigaChat со стримингом, обрабатывает 401 и ошибки.
-    Возвращает (full_response: str, success: bool).
-    """
     token = ensure_token()
     if not token:
         return "", False
@@ -284,7 +279,7 @@ for message in st.session_state.messages_cache[st.session_state.current_session_
                 else:
                     st.success(f"**Анализ токсичности.** {explanation}")
 
-# ---------- API-ключ ----------
+# ---------- Поля ввода ключей ----------
 gigachat_api_key = st.text_input(
     "GigaChat API Key",
     type="password",
@@ -292,11 +287,23 @@ gigachat_api_key = st.text_input(
     key="gigachat_key_input",
 )
 
+openrouter_api_key = st.text_input(
+    "OpenRouter API Key",
+    type="password",
+    value="",
+    help="Необходим для классификации через OpenRouter",
+    key="openrouter_key_input"
+)
+
 if not gigachat_api_key:
     st.info("Пожалуйста, введите API-ключ GigaChat для продолжения.", icon="🔑")
     st.stop()
 
-# Сбрасываем токен при смене ключа
+if not openrouter_api_key:
+    st.info("Пожалуйста, введите API-ключ OpenRouter для классификатора.", icon="🔑")
+    st.stop()
+
+# Сбрасываем токен при смене ключа GigaChat
 if gigachat_api_key != st.session_state.gigachat_api_key:
     st.session_state.gigachat_api_key = gigachat_api_key
     st.session_state.gigachat_token = None
@@ -305,27 +312,24 @@ if gigachat_api_key != st.session_state.gigachat_api_key:
 if prompt := st.chat_input("Введите сообщение..."):
     current_cache = st.session_state.messages_cache[st.session_state.current_session_id]
 
-    # Добавляем сообщение пользователя и показываем его
     current_cache.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Формируем историю для API (весь кэш, включая только что добавленное)
     api_messages = [
         {"role": m["role"], "content": m["content"]}
         for m in current_cache
     ]
 
-    # ---------- Вызов GigaChat ----------
     with st.chat_message("assistant"):
         full_response, success = call_gigachat(api_messages)
 
     if not success or not full_response.strip():
-        current_cache.pop()  # откатываем сообщение пользователя из кэша
+        current_cache.pop()
         st.warning("Не удалось получить ответ от GigaChat. Попробуйте ещё раз.")
         st.stop()
 
-    # ---------- Анализ токсичности ----------
+    # Анализ токсичности
     toxicity = {"label": None, "explanation": "Анализ не выполнен"}
     try:
         with st.spinner("Анализ токсичности..."):
@@ -335,16 +339,21 @@ if prompt := st.chat_input("Введите сообщение..."):
 
     context = f"Результат анализа токсичности: {toxicity.get('explanation', '')}"
 
-    # ---------- Классификатор ----------
+    # Классификатор
     label, reason = None, "Классификатор не отработал"
     try:
-        with st.spinner("Оценка ответа классификатором..."):
+        with st.spinner("Оценка ответа классификатором (OpenRouter)..."):
             similar = retrieve_similar_goals(prompt, k=3)
-            label, reason = classify_with_openrouter(prompt, full_response, similar, context=context)
+            label, reason = classify_with_openrouter(
+                prompt, full_response, similar,
+                api_key=openrouter_api_key,
+                context=context
+            )
     except Exception as e:
         st.warning(f"Классификатор не отработал: {e}")
+        st.error(traceback.format_exc())
 
-    # ---------- Сохраняем в кэш и БД ----------
+    # Сохранение
     current_cache.append({
         "role": "assistant",
         "content": full_response,
@@ -362,7 +371,7 @@ if prompt := st.chat_input("Введите сообщение..."):
         toxicity_details=toxicity,
     )
 
-    # ---------- Показываем результаты ----------
+    # Вывод результатов
     if label == 1:
         st.warning(f"⚠ **Подозрительный ответ**\n\nПричина: {reason}")
     elif label == 0:

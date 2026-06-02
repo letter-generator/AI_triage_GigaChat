@@ -9,7 +9,7 @@ DOC_PATH = 'classifier/data/censorship_rules.txt'
 INDEX_PATH = 'classifier/data/doc_index.faiss'
 CHUNKS_CSV = 'classifier/data/doc_chunks.csv'
 
-model = SentenceTransformer('ai-forever/FRIDA', trust_remote_code=True)
+model = SentenceTransformer('sergeyzh/rubert-mini-frida', trust_remote_code=True) # модель для эмбеддингов документов
 
 if not os.path.exists(DOC_PATH):
     raise FileNotFoundError(f"Файл с правилами не найден: {DOC_PATH}")

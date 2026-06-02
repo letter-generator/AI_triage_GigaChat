@@ -9,9 +9,7 @@ from sentence_transformers import SentenceTransformer
 @st.cache_resource(show_spinner="Загрузка модели FRIDA...")
 def _load_model() -> SentenceTransformer:
     """Загружается один раз за весь жизненный цикл приложения."""
-# Стало — лёгкая модель ~90 МБ, русский язык поддерживается
-    #return SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-    return SentenceTransformer("ai-forever/FRIDA", trust_remote_code=True)
+    return SentenceTransformer('sergeyzh/rubert-mini-frida', trust_remote_code=True)
 
 
 @st.cache_resource(show_spinner="Загрузка индекса целей...")

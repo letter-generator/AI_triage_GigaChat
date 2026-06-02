@@ -1,7 +1,7 @@
 import requests
 import time
 import json
-from classifier.retrieval import retrieve_similar_chunks
+#from classifier.retrieval import retrieve_similar_chunks
 
 VM_URL = "http://82.202.156.156:11434"
 MODEL_NAME = "akdengi/saiga-llama3-8b"

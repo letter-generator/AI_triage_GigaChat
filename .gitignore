@@ -1,6 +1,7 @@
 .venv/
 venv/
 env/
+.temp/
 
 *.db
 *.csv
@@ -8,7 +9,8 @@ env/
 *.docx
 *.xlsx
 *.ppt
-
+*.pdf
+*.zip
 __pycache__/
 *.pyc
 

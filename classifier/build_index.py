@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 
 
 df = pd.read_csv('classifier/data/labeled_data.csv')   
-model = SentenceTransformer('ai-forever/FRIDA', trust_remote_code=True)
+model = SentenceTransformer('sergeyzh/rubert-mini-frida', trust_remote_code=True)
 embeddings = model.encode(df['Goal'].tolist(), show_progress_bar=True)
 dim = embeddings.shape[1]
 index = faiss.IndexFlatL2(dim)
