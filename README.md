@@ -5,8 +5,6 @@
 <h1 align="center"> AI-агентная система red teaming и контроль ответов LLM «ГигаЧат» </h1>
 
 
-
-
 <h2 id="table-of-contents"> :book: Навигация</h2>
 
 <details open="open">
@@ -231,13 +229,13 @@ python classifier/build_index_doc.py</code></pre>
 </p>
 
 <ul>
-  <li><strong>Алымова Светлана Олеговна</strong> – аналитик</li>
-  <li><strong>Ляпин Семён Николаевич</strong> – разработчик</li>
-  <li><strong>Молчанова Полина Алексеевна</strong> – руководитель команды</li>
-  <li><strong>Пластеева Ксения Евгеньевна</strong> – разработчик</li>
-  <li><strong>Ступаченко Екатерина Евгеньевна</strong> – разработчик, тимлид</li>
-  <li><strong>Тетенькина Екатерина Владимировна</strong> – разработчик</li>
-  <li><strong>Филипович Илья Андреевич</strong> – разработчик</li>
+  <li><strong>Алымова Светлана Олеговна</strong> </li>
+  <li><strong>Ляпин Семён Николаевич</strong> </li>
+  <li><strong>Молчанова Полина Алексеевна</strong> </li>
+  <li><strong>Пластеева Ксения Евгеньевна</strong> </li>
+  <li><strong>Ступаченко Екатерина Евгеньевна</strong> </li>
+  <li><strong>Тетенькина Екатерина Владимировна</strong> </li>
+  <li><strong>Филипович Илья Андреевич</strong> </li>
 </ul>
 
 <p>
