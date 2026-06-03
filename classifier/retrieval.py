@@ -1,4 +1,3 @@
-# classifier/retrieval.py
 import numpy as np
 import pandas as pd
 import faiss
@@ -9,7 +8,7 @@ from sentence_transformers import SentenceTransformer
 @st.cache_resource(show_spinner="Загрузка модели FRIDA...")
 def _load_model() -> SentenceTransformer:
     """Загружается один раз за весь жизненный цикл приложения."""
-    return SentenceTransformer('sergeyzh/rubert-mini-frida', trust_remote_code=True)
+    return SentenceTransformer("sergeyzh/rubert-mini-frida", trust_remote_code=True)
 
 
 @st.cache_resource(show_spinner="Загрузка индекса целей...")

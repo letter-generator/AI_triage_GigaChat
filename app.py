@@ -1,10 +1,11 @@
-import streamlit as st
-import requests
-import json
-from typing import Optional
-from datetime import datetime
 import ast
+import json
+import traceback
+from datetime import datetime
+from typing import Optional
 
+import requests
+import streamlit as st
 
 try:
     from classifier.retrieval import retrieve_similar_goals
@@ -15,8 +16,14 @@ except Exception:
 from classifier.model_or import classify_with_openrouter
 from classifier.model_toxicity import analyze_toxicity
 from database import (
-    init_db, create_session, delete_session, rename_session,
-    get_all_sessions, get_messages, save_message, export_session_messages
+    init_db,
+    create_session,
+    delete_session,
+    rename_session,
+    get_all_sessions,
+    get_messages,
+    save_message,
+    export_session_messages,
 )
 
 # ---------- CSS ----------
@@ -24,6 +31,7 @@ def load_css():
     with open("style.css", "r", encoding="utf-8") as f:
         css = f.read()
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
 
 load_css()
 init_db()
@@ -226,7 +234,10 @@ with st.sidebar:
         st.download_button(
             label="⭳ CSV",
             data=csv_data,
-            file_name=f"chat_{st.session_state.current_session_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            file_name=(
+                f"chat_{st.session_state.current_session_id[:8]}"
+                f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            ),
             mime="text/csv",
         )
     else:
@@ -248,13 +259,15 @@ if st.session_state.current_session_id not in st.session_state.messages_cache:
                 tox = ast.literal_eval(toxicity_details)
             except Exception:
                 tox = None
-        formatted.append({
-            "role": "assistant",
-            "content": assistant_response,
-            "label": label,
-            "reason": reason,
-            "toxicity": tox,
-        })
+        formatted.append(
+            {
+                "role": "assistant",
+                "content": assistant_response,
+                "label": label,
+                "reason": reason,
+                "toxicity": tox,
+            }
+        )
     st.session_state.messages_cache[st.session_state.current_session_id] = formatted
 
 # ---------- Отображение истории ----------
@@ -292,7 +305,7 @@ openrouter_api_key = st.text_input(
     type="password",
     value="",
     help="Необходим для классификации через OpenRouter",
-    key="openrouter_key_input"
+    key="openrouter_key_input",
 )
 
 if not gigachat_api_key:
@@ -316,10 +329,7 @@ if prompt := st.chat_input("Введите сообщение..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    api_messages = [
-        {"role": m["role"], "content": m["content"]}
-        for m in current_cache
-    ]
+    api_messages = [{"role": m["role"], "content": m["content"]} for m in current_cache]
 
     with st.chat_message("assistant"):
         full_response, success = call_gigachat(api_messages)
@@ -345,22 +355,26 @@ if prompt := st.chat_input("Введите сообщение..."):
         with st.spinner("Оценка ответа классификатором (OpenRouter)..."):
             similar = retrieve_similar_goals(prompt, k=3)
             label, reason = classify_with_openrouter(
-                prompt, full_response, similar,
+                prompt,
+                full_response,
+                similar,
                 api_key=openrouter_api_key,
-                context=context
+                context=context,
             )
     except Exception as e:
         st.warning(f"Классификатор не отработал: {e}")
         st.error(traceback.format_exc())
 
     # Сохранение
-    current_cache.append({
-        "role": "assistant",
-        "content": full_response,
-        "label": label,
-        "reason": reason,
-        "toxicity": toxicity,
-    })
+    current_cache.append(
+        {
+            "role": "assistant",
+            "content": full_response,
+            "label": label,
+            "reason": reason,
+            "toxicity": toxicity,
+        }
+    )
 
     save_message(
         session_id=st.session_state.current_session_id,

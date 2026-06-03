@@ -1,7 +1,7 @@
 import torch
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from typing import Dict, Any
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 
 @st.cache_resource(show_spinner="Загрузка модели токсичности...")
