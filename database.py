@@ -30,11 +30,22 @@ def init_db():
             label INTEGER,
             reason TEXT,
             toxicity_details TEXT,
+            classifier_model TEXT,
+            gigachat_model_version TEXT,
             timestamp TIMESTAMP,
             FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
         )
         """
     )
+    # Миграция для существующих таблиц (добавление колонок, если их нет)
+    try:
+        c.execute("ALTER TABLE messages ADD COLUMN classifier_model TEXT")
+    except sqlite3.OperationalError:
+        pass  # колонка уже существует
+    try:
+        c.execute("ALTER TABLE messages ADD COLUMN gigachat_model_version TEXT")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -89,7 +100,8 @@ def get_messages(session_id: str):
     c = conn.cursor()
     c.execute(
         """
-        SELECT user_prompt, assistant_response, label, reason, toxicity_details, timestamp
+        SELECT user_prompt, assistant_response, label, reason, toxicity_details,
+               classifier_model, gigachat_model_version, timestamp
         FROM messages
         WHERE session_id = ?
         ORDER BY timestamp
@@ -108,14 +120,17 @@ def save_message(
     label,
     reason,
     toxicity_details=None,
+    classifier_model=None,
+    gigachat_model_version=None,
 ):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
         """
         INSERT INTO messages
-        (session_id, user_prompt, assistant_response, label, reason, toxicity_details, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (session_id, user_prompt, assistant_response, label, reason, toxicity_details,
+         classifier_model, gigachat_model_version, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             session_id,
@@ -124,6 +139,8 @@ def save_message(
             label,
             reason,
             str(toxicity_details),
+            classifier_model,
+            gigachat_model_version,
             datetime.now(),
         ),
     )
@@ -135,7 +152,8 @@ def export_session_messages(session_id: str):
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query(
         """
-        SELECT user_prompt, assistant_response, label, reason, toxicity_details, timestamp
+        SELECT user_prompt, assistant_response, label, reason, toxicity_details,
+               classifier_model, gigachat_model_version, timestamp
         FROM messages
         WHERE session_id = ?
         ORDER BY timestamp

@@ -1,7 +1,7 @@
 import ast
 import json
 import traceback
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 import requests
@@ -25,6 +25,7 @@ from database import (
     save_message,
     export_session_messages,
 )
+from supabase_client import get_unprocessed_prompts, save_classification_result
 
 # ---------- CSS ----------
 def load_css():
@@ -125,7 +126,42 @@ def refresh_token() -> Optional[str]:
     return None
 
 
-# ---------- Вызов GigaChat ----------
+# ---------- Синхронный вызов GigaChat (без потоков, для пакетной обработки) ----------
+def call_gigachat_sync(prompt: str) -> str:
+    token = ensure_token()
+    if not token:
+        return ""
+    messages = [{"role": "user", "content": prompt}]
+    url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "GigaChat",
+        "messages": messages,
+        "stream": False,
+        "temperature": 0.7,
+        "max_tokens": 1024,
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload, verify=False)
+        if response.status_code == 401:
+            new_token = refresh_token()
+            if new_token:
+                headers["Authorization"] = f"Bearer {new_token}"
+                response = requests.post(url, headers=headers, json=payload, verify=False)
+            else:
+                return ""
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        st.error(f"Ошибка при вызове GigaChat: {e}")
+        return ""
+
+
+# ---------- Потоковый вызов GigaChat (для интерактивного режима) ----------
 def gigachat_stream(messages: list, access_token: str):
     url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
     headers = {
@@ -143,7 +179,7 @@ def gigachat_stream(messages: list, access_token: str):
         response = requests.post(url, headers=headers, json=payload, stream=True, verify=False)
 
         if response.status_code == 401:
-            yield ("", False, True)  # сигнал: токен истёк
+            yield ("", False, True)
             return
 
         response.raise_for_status()
@@ -219,9 +255,11 @@ with st.sidebar:
     st.markdown("---")
 
     for sid, name, start_time in st.session_state.sessions_list:
+        is_active = sid == st.session_state.current_session_id
+        display_name = f"▸ {name}" if is_active else name
         col1, col2 = st.columns([0.8, 0.2])
         with col1:
-            if st.button(name, key=f"chat_{sid}", use_container_width=True):
+            if st.button(display_name, key=f"chat_{sid}", use_container_width=True):
                 switch_chat(sid)
         with col2:
             if st.button("🗑", key=f"del_{sid}", help="Удалить чат"):
@@ -243,6 +281,112 @@ with st.sidebar:
     else:
         st.info("Нет данных для экспорта")
 
+    st.markdown("---")
+    st.header("Автоматическая обработка")
+
+    # Параметры модели
+    openrouter_model = st.text_input(
+        "Модель OpenRouter",
+        value="google/gemini-2.0-flash-exp:free",
+        help="Название модели для классификатора"
+    )
+    gigachat_version = st.text_input(
+        "Версия GigaChat",
+        value="GigaChat 1.0.0",
+        help="Версия модели GigaChat"
+    )
+
+    # Фильтры
+    with st.expander("Фильтры промтов"):
+        col1, col2 = st.columns(2)
+        with col1:
+            date_from = st.date_input("Дата от", value=None)
+        with col2:
+            date_to = st.date_input("Дата до", value=None)
+
+        mutation_types = [
+            "",
+            "contextual_obfuscation",
+            "role_play_virtualization",
+            "multi_step_escalation",
+            "linguistic_obfuscation",
+            "token_smuggling",
+            "system_mode",
+            "hypothetical_scenario"
+        ]
+        mutation_type = st.selectbox("Тип мутации", options=mutation_types, index=0)
+        limit = st.number_input("Количество промтов", min_value=1, max_value=1000, value=None, step=1)
+
+    # Кнопка запуска
+    if st.button("AttacksPromts", use_container_width=True):
+        # Формируем параметры фильтрации
+        filter_params = {}
+        if date_from:
+            filter_params["date_from"] = date_from.isoformat()
+        if date_to:
+            filter_params["date_to"] = date_to.isoformat()
+        if mutation_type:
+            filter_params["mutation_type"] = mutation_type
+        if limit:
+            filter_params["limit"] = limit
+
+        with st.spinner("Загрузка промтов..."):
+            prompts = get_unprocessed_prompts(**filter_params)
+
+        if not prompts:
+            st.info("Нет новых промтов для обработки.")
+        else:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            successful = []
+            failed = []
+
+            for i, p in enumerate(prompts):
+                status_text.text(f"Обработка {i+1} из {len(prompts)}: {p['mutated_prompt'][:80]}...")
+                response_text = call_gigachat_sync(p['mutated_prompt'])
+                if not response_text:
+                    failed.append(f"ID {p['id']}: {p['mutated_prompt'][:50]}... (нет ответа GigaChat)")
+                    progress_bar.progress((i+1)/len(prompts))
+                    continue
+
+                toxicity = analyze_toxicity(response_text)
+                context = f"Результат анализа токсичности: {toxicity.get('explanation', '')}"
+                similar = retrieve_similar_goals(p['mutated_prompt'], k=3)
+
+                label, reason = classify_with_openrouter(
+                    p['mutated_prompt'],
+                    response_text,
+                    similar,
+                    api_key=st.session_state.get("openrouter_api_key", ""),
+                    context=context,
+                    model_name=openrouter_model
+                )
+
+                save_classification_result(
+                    prompt_id=p['id'],
+                    mutated_prompt=p['mutated_prompt'],
+                    gigachat_response=response_text,
+                    label=label,
+                    reason=reason,
+                    toxicity_details=toxicity,
+                    classifier_model=openrouter_model,
+                    gigachat_model_version=gigachat_version
+                )
+                successful.append(f"ID {p['id']}: {p['mutated_prompt'][:50]}... (метка {label})")
+                progress_bar.progress((i+1)/len(prompts))
+
+            status_text.text("Обработка завершена!")
+            st.success(f"Обработано {len(prompts)} промтов. Успешно: {len(successful)} | Ошибок: {len(failed)}")
+            with st.expander("Подробности"):
+                if successful:
+                    st.write("Успешно обработаны:")
+                    for item in successful:
+                        st.write(f"- {item}")
+                if failed:
+                    st.write("Ошибки:")
+                    for item in failed:
+                        st.write(f"- {item}")
+
 # ---------- Основная область ----------
 st.title("AI-агентная система red teaming и контроль ответов LLM GigaChat")
 st.write("Выберите чат слева или создайте новый. Все диалоги сохраняются.")
@@ -251,7 +395,7 @@ st.write("Выберите чат слева или создайте новый.
 if st.session_state.current_session_id not in st.session_state.messages_cache:
     msgs = get_messages(st.session_state.current_session_id)
     formatted = []
-    for user_prompt, assistant_response, label, reason, toxicity_details, ts in msgs:
+    for user_prompt, assistant_response, label, reason, toxicity_details, classifier_model, gigachat_model_version, ts in msgs:
         formatted.append({"role": "user", "content": user_prompt})
         tox = None
         if toxicity_details:
@@ -266,10 +410,11 @@ if st.session_state.current_session_id not in st.session_state.messages_cache:
                 "label": label,
                 "reason": reason,
                 "toxicity": tox,
+                "classifier_model": classifier_model,
+                "gigachat_model_version": gigachat_model_version,
             }
         )
     st.session_state.messages_cache[st.session_state.current_session_id] = formatted
-
 # ---------- Отображение истории ----------
 for message in st.session_state.messages_cache[st.session_state.current_session_id]:
     with st.chat_message(message["role"]):
@@ -316,6 +461,9 @@ if not openrouter_api_key:
     st.info("Пожалуйста, введите API-ключ OpenRouter для классификатора.", icon="🔑")
     st.stop()
 
+# Сохраняем openrouter_api_key в session_state для использования в синхронной обработке
+st.session_state.openrouter_api_key = openrouter_api_key
+
 # Сбрасываем токен при смене ключа GigaChat
 if gigachat_api_key != st.session_state.gigachat_api_key:
     st.session_state.gigachat_api_key = gigachat_api_key
@@ -360,6 +508,7 @@ if prompt := st.chat_input("Введите сообщение..."):
                 similar,
                 api_key=openrouter_api_key,
                 context=context,
+                model_name=openrouter_model,
             )
     except Exception as e:
         st.warning(f"Классификатор не отработал: {e}")
