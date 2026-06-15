@@ -14,7 +14,7 @@ def _load_model() -> SentenceTransformer:
 @st.cache_resource(show_spinner="Загрузка индекса целей...")
 def _load_goal_resources() -> tuple:
     index = faiss.read_index("classifier/data/goal_index.faiss")
-    df = pd.read_csv("classifier/data/labeled_data.csv")
+    df = pd.read_csv("classifier/data/labeled_data_090626.csv")
     return index, df
 
 

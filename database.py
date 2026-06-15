@@ -37,11 +37,11 @@ def init_db():
         )
         """
     )
-    # Миграция для существующих таблиц (добавление колонок, если их нет)
+    
     try:
         c.execute("ALTER TABLE messages ADD COLUMN classifier_model TEXT")
     except sqlite3.OperationalError:
-        pass  # колонка уже существует
+        pass  
     try:
         c.execute("ALTER TABLE messages ADD COLUMN gigachat_model_version TEXT")
     except sqlite3.OperationalError:

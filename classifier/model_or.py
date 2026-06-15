@@ -71,7 +71,7 @@ def classify_with_openrouter(
         "X-Title": "GigaChat Answer Classifier",
     }
     payload = {
-        "model": model_name if model_name else "google/gemini-2.0-flash-exp:free",
+        "model": model_name if model_name else "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "messages": [
             {"role": "system", "content": "Ты помощник, который классифицирует ответы и объясняет причину. Отвечай строго в формате:\nОценка: хороший|плохой\nПричина: ..."},
             {"role": "user", "content": prompt},

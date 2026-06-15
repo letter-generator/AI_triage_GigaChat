@@ -5,17 +5,17 @@
     --neon-cyan: #00F0FF;
     --neon-red: #FF2A6D;
     --neon-orange: #FF6B00;
-    --dark-bg: #0a0a14;
-    --glass: rgba(12, 15, 32, 0.82);
+    --dark-bg: #070710;
+    --glass: rgba(10, 12, 28, 0.88);
 }
 
 /* ========== ОСНОВНОЙ ФОН ========== */
 html, body, .stApp {
     font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
-    background: 
+    background:
         radial-gradient(circle at 30% 20%, rgba(0, 240, 255, 0.08) 0%, transparent 50%),
         radial-gradient(circle at 70% 80%, rgba(0, 230, 118, 0.08) 0%, transparent 50%),
-        linear-gradient(135deg, #0a0a14 0%, #12121f 45%, #1a1a2b 100%);
+        linear-gradient(135deg, #070710 0%, #0e0e1c 45%, #131325 100%);
     background-size: 200% 200%, 200% 200%, 400% 400%;
     animation: cosmicShift 30s ease infinite;
     color: #f0f4ff;
@@ -33,16 +33,16 @@ html, body, .stApp {
     content: "";
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: 
-        linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
+    background:
+        linear-gradient(rgba(0,240,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,240,255,0.025) 1px, transparent 1px);
     background-size: 80px 80px;
     pointer-events: none;
     z-index: 0;
     animation: gridMove 120s linear infinite;
 }
 @keyframes gridMove {
-    0% { background-position: 0 0; }
+    0%   { background-position: 0 0; }
     100% { background-position: -80px -80px; }
 }
 
@@ -54,138 +54,352 @@ h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
 }
 
 .stMarkdown h1 {
-    background: linear-gradient(90deg, #00F0FF, #00E676);
+    background: linear-gradient(90deg, #00F0FF 0%, #00E676 50%, #00F0FF 100%);
+    background-size: 200% auto;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent !important;
-    text-shadow: 0 0 5px rgba(0,240,255,0.5);
-    font-size: 2.4rem !important;
+    animation: textShimmer 5s linear infinite;
+    font-size: 2.2rem !important;
     font-weight: 300 !important;
+    letter-spacing: 1px;
+}
+@keyframes textShimmer {
+    0%   { background-position: 0% center; }
+    100% { background-position: 200% center; }
+}
+
+/* Разделитель под заголовком */
+.stMarkdown h1::after {
+    content: "";
+    display: block;
+    margin-top: 10px;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 240, 255, 0.6) 30%,
+        rgba(0, 230, 118, 0.6) 70%,
+        transparent 100%
+    );
+}
+
+/* ========== РАЗДЕЛИТЕЛИ ========== */
+hr {
+    border: none !important;
+    height: 1px !important;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 240, 255, 0.35) 30%,
+        rgba(0, 230, 118, 0.35) 70%,
+        transparent 100%
+    ) !important;
+    margin: 1rem 0 !important;
 }
 
 /* ========== САЙДБАР ========== */
 [data-testid="stSidebar"] > div {
     background: var(--glass) !important;
-    backdrop-filter: blur(24px) saturate(180%);
-    border-right: 1px solid rgba(0, 240, 255, 0.18);
+    backdrop-filter: blur(28px) saturate(180%);
+    border-right: 1px solid rgba(0, 240, 255, 0.12);
+    box-shadow: 4px 0 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Неоновая полоска вверху сайдбара */
+[data-testid="stSidebar"] > div::before {
+    content: "";
+    display: block;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(0, 240, 255, 0.7),
+        rgba(0, 230, 118, 0.7),
+        transparent
+    );
+    animation: sidebarGlow 4s ease infinite;
+    margin-bottom: 4px;
+}
+@keyframes sidebarGlow {
+    0%, 100% { opacity: 0.5; }
+    50%       { opacity: 1; }
+}
+
+[data-testid="stSidebar"] label {
+    color: rgba(150, 170, 210, 0.75) !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+[data-testid="stSidebar"] .stMarkdown p {
+    color: rgba(150, 170, 210, 0.75) !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.5px;
+}
+
+[data-testid="stSidebar"] .stTextInput > div > div > input {
+    background: rgba(6, 7, 18, 0.95) !important;
+    border: 1px solid rgba(0, 240, 255, 0.16) !important;
+    border-radius: 8px !important;
+    color: #c8d4f0 !important;
+    font-size: 0.88rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+[data-testid="stSidebar"] .stTextInput > div > div > input:focus {
+    border-color: rgba(0, 240, 255, 0.45) !important;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.12) !important;
+}
+
+[data-testid="stSidebar"] .stSelectbox > div > div,
+[data-testid="stSidebar"] .stNumberInput > div > div > input,
+[data-testid="stSidebar"] .stDateInput > div > div > input {
+    background: rgba(6, 7, 18, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+    color: #c8d4f0 !important;
+    font-size: 0.88rem;
+}
+
+/* ========== EXPANDER ========== */
+.streamlit-expanderHeader {
+    background: rgba(8, 9, 22, 0.8) !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    color: #a0b0d0 !important;
+    font-size: 0.82rem !important;
+    letter-spacing: 0.3px;
+}
+.streamlit-expanderContent {
+    background: rgba(6, 7, 18, 0.7) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-top: none !important;
+    border-radius: 0 0 8px 8px !important;
+}
+
+/* ========== АВАТАРЫ ========== */
+/* Пользователь */
+[data-testid="stChatMessageAvatarUser"] {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border: 1px solid rgba(255, 42, 109, 0.6) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 0 14px rgba(255, 42, 109, 0.45);
+}
+[data-testid="stChatMessageAvatarUser"] svg,
+[data-testid="stChatMessageAvatarUser"] img {
+    filter: brightness(0) !important;
+}
+
+/* Ассистент */
+[data-testid="stChatMessageAvatarAssistant"] {
+    background: rgba(255, 255, 255, 0.92) !important;
+    border: 1px solid rgba(0, 230, 118, 0.55) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 0 14px rgba(0, 230, 118, 0.4);
+}
+[data-testid="stChatMessageAvatarAssistant"] svg,
+[data-testid="stChatMessageAvatarAssistant"] img {
+    filter: brightness(0) !important;
 }
 
 /* ========== СООБЩЕНИЯ ЧАТА ========== */
 .stChatMessage {
     background: rgba(18, 20, 38, 0.75) !important;
     backdrop-filter: blur(18px) saturate(160%);
-    border-radius: 28px;
+    border-radius: 20px;
     padding: 18px 24px;
-    margin: 18px 0;
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 
-        0 8px 32px -12px rgba(0,0,0,0.5),
-        inset 0 1px 0 rgba(255,255,255,0.08);
-    transition: transform 0.3s ease;
+    margin: 16px 0;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow:
+        0 8px 32px -12px rgba(0,0,0,0.6),
+        inset 0 1px 0 rgba(255,255,255,0.07);
+    animation: fadeUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+    will-change: transform;
 }
 
 .stChatMessage:hover {
-    transform: translateY(-4px) scale(1.01);
+    transform: translateY(-5px) scale(1.012);
+    box-shadow:
+        0 20px 50px -14px rgba(0,0,0,0.8),
+        inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 /* Пользователь */
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
     background: linear-gradient(115deg, rgba(255, 42, 109, 0.22), rgba(255, 107, 0, 0.08)) !important;
-    border-left: 5px solid var(--neon-red);
-    box-shadow: 0 0 25px -5px var(--neon-red);
-    animation: colorShiftUser 3s ease infinite;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 4px solid var(--neon-red);
+    box-shadow: 0 0 28px -6px rgba(255, 42, 109, 0.4);
+    animation: fadeUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+               colorShiftUser 3s ease infinite;
 }
-
 @keyframes colorShiftUser {
-    0% { border-left-color: #FF2A6D; box-shadow: 0 0 25px -5px #FF2A6D; }
-    50% { border-left-color: #FF6B00; box-shadow: 0 0 25px -5px #FF6B00; }
-    100% { border-left-color: #FF2A6D; box-shadow: 0 0 25px -5px #FF2A6D; }
+    0%   { border-left-color: #FF2A6D; box-shadow: 0 0 28px -6px #FF2A6D; }
+    50%  { border-left-color: #FF6B00; box-shadow: 0 0 28px -6px #FF6B00; }
+    100% { border-left-color: #FF2A6D; box-shadow: 0 0 28px -6px #FF2A6D; }
+}
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]):hover {
+    box-shadow: 0 0 48px -4px rgba(255, 42, 109, 0.6),
+                0 20px 50px -14px rgba(0,0,0,0.8);
 }
 
 /* Ассистент */
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
     background: linear-gradient(115deg, rgba(0, 230, 118, 0.22), rgba(0, 240, 255, 0.08)) !important;
-    border-right: 5px solid var(--sber-green);
-    box-shadow: 0 0 25px -5px var(--sber-green);
-    animation: colorShiftAssistant 3s ease infinite;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 4px solid var(--sber-green);
+    box-shadow: 0 0 28px -6px rgba(0, 230, 118, 0.35);
+    animation: fadeUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+               colorShiftAssistant 3s ease infinite;
+}
+@keyframes colorShiftAssistant {
+    0%   { border-right-color: #00E676; box-shadow: 0 0 28px -6px #00E676; }
+    50%  { border-right-color: #00F0FF; box-shadow: 0 0 28px -6px #00F0FF; }
+    100% { border-right-color: #00E676; box-shadow: 0 0 28px -6px #00E676; }
+}
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]):hover {
+    box-shadow: 0 0 48px -4px rgba(0, 230, 118, 0.5),
+                0 20px 50px -14px rgba(0,0,0,0.8);
 }
 
-@keyframes colorShiftAssistant {
-    0% { border-right-color: #00E676; box-shadow: 0 0 25px -5px #00E676; }
-    50% { border-right-color: #00F0FF; box-shadow: 0 0 25px -5px #00F0FF; }
-    100% { border-right-color: #00E676; box-shadow: 0 0 25px -5px #00E676; }
+/* ========== TYPING CURSOR ========== */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+.stChatMessage p:last-child::after {
+    animation: blink 1s step-end infinite;
+}
+
+/* ========== БЛОКИ ОЦЕНКИ ========== */
+.stAlert {
+    border-radius: 12px !important;
+    backdrop-filter: blur(12px);
+}
+
+div[data-testid="stNotification"][class*="success"],
+.element-container .stSuccess {
+    background: rgba(0, 200, 100, 0.07) !important;
+    border-left: 3px solid rgba(0, 200, 100, 0.8) !important;
+    box-shadow: 0 0 20px -6px rgba(0, 200, 100, 0.25) !important;
+    color: #a0ecc8 !important;
+    border-radius: 12px !important;
+}
+div[data-testid="stNotification"][class*="warning"],
+.element-container .stWarning {
+    background: rgba(255, 160, 0, 0.07) !important;
+    border-left: 3px solid rgba(255, 160, 0, 0.8) !important;
+    box-shadow: 0 0 20px -6px rgba(255, 160, 0, 0.25) !important;
+    color: #ffd890 !important;
+    border-radius: 12px !important;
+}
+div[data-testid="stNotification"][class*="error"],
+.element-container .stError {
+    background: rgba(255, 42, 109, 0.07) !important;
+    border-left: 3px solid rgba(255, 42, 109, 0.8) !important;
+    box-shadow: 0 0 20px -6px rgba(255, 42, 109, 0.25) !important;
+    color: #ffaac4 !important;
+    border-radius: 12px !important;
+}
+div[data-testid="stNotification"][class*="info"],
+.element-container .stInfo {
+    background: rgba(0, 200, 240, 0.06) !important;
+    border-left: 3px solid rgba(0, 200, 240, 0.7) !important;
+    box-shadow: 0 0 20px -6px rgba(0, 200, 240, 0.2) !important;
+    color: #90d8f0 !important;
+    border-radius: 12px !important;
 }
 
 /* ========== ПОЛЯ ВВОДА API КЛЮЧЕЙ ========== */
-.stTextInput > div {
-    border-radius: 28px !important;
-}
-
-.stTextInput > div > div > input {
-    background: rgba(15, 18, 35, 0.85) !important;
-    border: 1px solid rgba(255,255,255,0.2) !important;
+:not([data-testid="stSidebar"]) .stTextInput > div { border-radius: 28px !important; }
+:not([data-testid="stSidebar"]) .stTextInput > div > div > input {
+    background: rgba(10, 12, 28, 0.88) !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
     border-radius: 28px !important;
     padding: 12px 20px !important;
     font-size: 0.95rem;
+    color: #e0e8ff !important;
     transition: all 0.2s;
 }
-
-.stTextInput > div > div > input:focus {
-    border-color: #FF2A6D !important;
-    box-shadow: 0 0 12px rgba(255, 42, 109, 0.3) !important;
-    background: rgba(20, 24, 45, 0.95) !important;
+:not([data-testid="stSidebar"]) .stTextInput > div > div > input:focus {
+    border-color: rgba(255, 42, 109, 0.6) !important;
+    box-shadow: 0 0 14px rgba(255, 42, 109, 0.2) !important;
+    background: rgba(16, 18, 38, 0.96) !important;
 }
 
 /* ========== ПОЛЕ ВВОДА СООБЩЕНИЙ ========== */
 .stChatInputContainer > div {
-    background: rgba(15, 18, 35, 0.9) !important;
+    background: rgba(10, 12, 28, 0.92) !important;
     backdrop-filter: blur(22px);
     border-radius: 9999px !important;
-    border: 1px solid rgba(0, 240, 255, 0.3) !important;
+    border: 1px solid rgba(0, 240, 255, 0.25) !important;
+    transition: border-color 0.25s, box-shadow 0.25s;
 }
-
 .stChatInputContainer > div:focus-within {
-    border-color: var(--neon-cyan) !important;
-    box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.2);
+    border-color: rgba(0, 240, 255, 0.55) !important;
+    box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.08),
+                0 0 20px rgba(0, 240, 255, 0.1);
 }
 
-/* ========== КНОПКИ  ========== */
+/* ========== КНОПКИ ========== */
 .stButton > button {
-    background: linear-gradient(90deg, #0a2f2f, #0a1f2a) !important;
-    border-radius: 9999px !important;
-    font-weight: 600;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    color: #f0f0f0 !important;
-    padding: 0.5rem 1.2rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+    background: linear-gradient(90deg, #071a1a, #070f1a) !important;
+    border-radius: 20px !important;
+    font-weight: 500;
+    font-size: 0.87rem;
+    letter-spacing: 0.4px;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    color: #d0daf0 !important;
+    padding: 0.45rem 1.1rem;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
+}
+.stButton > button:hover {
+    background: rgba(0, 240, 255, 0.07) !important;
+    border-color: rgba(0, 240, 255, 0.4) !important;
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.14);
+    color: #ffffff !important;
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(90deg,
+        rgba(0, 240, 255, 0.12),
+        rgba(0, 230, 118, 0.09)) !important;
+    border-color: rgba(0, 240, 255, 0.3) !important;
+    box-shadow: 0 0 14px rgba(0, 240, 255, 0.1);
+}
+.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(90deg,
+        rgba(0, 240, 255, 0.2),
+        rgba(0, 230, 118, 0.14)) !important;
+    box-shadow: 0 0 26px rgba(0, 240, 255, 0.2);
 }
 
-.stButton > button:hover {
-    transform: scale(1.02);
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-    border-color: rgba(255, 255, 255, 0.6);
+/* ========== ПРОГРЕСС-БАР ========== */
+[data-testid="stProgressBar"] > div > div {
+    background: linear-gradient(90deg, #00F0FF, #00E676) !important;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+    border-radius: 9999px;
+}
+[data-testid="stProgressBar"] > div {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-radius: 9999px;
+}
+
+/* ========== СПИННЕР ========== */
+.stSpinner > div {
+    border-top-color: var(--neon-cyan) !important;
 }
 
 /* ========== АНИМАЦИЯ ПОЯВЛЕНИЯ ========== */
 @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.stChatMessage {
-    animation: fadeUp 0.3s ease-out forwards;
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ========== СКРОЛЛБАР ========== */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-::-webkit-scrollbar-track {
-    background: #1e1e2f;
-}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: rgba(6, 6, 14, 0.8); }
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(#00F0FF, #00E676);
+    background: linear-gradient(180deg, #00F0FF, #00E676);
     border-radius: 10px;
 }

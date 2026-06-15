@@ -1,7 +1,7 @@
 import ast
 import json
 import traceback
-from datetime import datetime, date
+from datetime import datetime
 from typing import Optional
 
 import requests
@@ -16,16 +16,17 @@ except Exception:
 from classifier.model_or import classify_with_openrouter
 from classifier.model_toxicity import analyze_toxicity
 from database import (
-    init_db,
     create_session,
     delete_session,
-    rename_session,
+    export_session_messages,
     get_all_sessions,
     get_messages,
+    init_db,
+    rename_session,
     save_message,
-    export_session_messages,
 )
 from supabase_client import get_unprocessed_prompts, save_classification_result
+
 
 # ---------- CSS ----------
 def load_css():
@@ -36,6 +37,7 @@ def load_css():
 
 load_css()
 init_db()
+
 
 # ---------- Инициализация состояния ----------
 if "current_session_id" not in st.session_state:
@@ -53,6 +55,13 @@ if "gigachat_token" not in st.session_state:
 
 if "gigachat_api_key" not in st.session_state:
     st.session_state.gigachat_api_key = ""
+
+# Дефолты для модели — чтобы не было NameError вне sidebar
+if "openrouter_model" not in st.session_state:
+    st.session_state.openrouter_model = "google/gemini-2.0-flash-exp:free"
+
+if "gigachat_version" not in st.session_state:
+    st.session_state.gigachat_version = "GigaChat 1.0.0"
 
 
 def refresh_sessions():
@@ -76,7 +85,9 @@ def delete_chat(sid):
     refresh_sessions()
     if st.session_state.current_session_id == sid:
         sessions = st.session_state.sessions_list
-        st.session_state.current_session_id = sessions[0][0] if sessions else create_session()
+        st.session_state.current_session_id = (
+            sessions[0][0] if sessions else create_session()
+        )
     st.rerun()
 
 
@@ -126,7 +137,7 @@ def refresh_token() -> Optional[str]:
     return None
 
 
-# ---------- Синхронный вызов GigaChat (без потоков, для пакетной обработки) ----------
+# ---------- Синхронный вызов GigaChat (для пакетной обработки) ----------
 def call_gigachat_sync(prompt: str) -> str:
     token = ensure_token()
     if not token:
@@ -154,8 +165,7 @@ def call_gigachat_sync(prompt: str) -> str:
             else:
                 return ""
         response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
+        return response.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         st.error(f"Ошибка при вызове GigaChat: {e}")
         return ""
@@ -176,14 +186,13 @@ def gigachat_stream(messages: list, access_token: str):
         "max_tokens": 1024,
     }
     try:
-        response = requests.post(url, headers=headers, json=payload, stream=True, verify=False)
-
+        response = requests.post(
+            url, headers=headers, json=payload, stream=True, verify=False
+        )
         if response.status_code == 401:
             yield ("", False, True)
             return
-
         response.raise_for_status()
-
         for line in response.iter_lines():
             if not line:
                 continue
@@ -195,12 +204,13 @@ def gigachat_stream(messages: list, access_token: str):
                 break
             try:
                 chunk = json.loads(data)
-                content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                content = (
+                    chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                )
                 if content:
                     yield (content, False, False)
             except json.JSONDecodeError:
                 continue
-
     except Exception as e:
         yield (f"Ошибка при вызове GigaChat: {e}", True, False)
 
@@ -247,6 +257,26 @@ def call_gigachat(api_messages: list) -> tuple:
     return full_response, True
 
 
+# ---------- Вспомогательная функция парсинга ID ----------
+def parse_id_list(raw: str) -> list:
+    """Парсит строку вида '5,12,34-56' в список целых чисел."""
+    result = []
+    for part in raw.split(","):
+        part = part.strip()
+        if part.count("-") == 1 and not part.startswith("-"):
+            try:
+                start, end = map(int, part.split("-"))
+                result.extend(range(start, end + 1))
+            except ValueError:
+                pass
+        else:
+            try:
+                result.append(int(part))
+            except ValueError:
+                pass
+    return result
+
+
 # ---------- Боковая панель ----------
 with st.sidebar:
     st.header("☰ История чатов")
@@ -284,26 +314,78 @@ with st.sidebar:
     st.markdown("---")
     st.header("Автоматическая обработка")
 
-    # Параметры модели
     openrouter_model = st.text_input(
         "Модель OpenRouter",
-        value="google/gemini-2.0-flash-exp:free",
-        help="Название модели для классификатора"
+        value=st.session_state.openrouter_model,
+        help="Название модели для классификатора",
     )
     gigachat_version = st.text_input(
         "Версия GigaChat",
-        value="GigaChat 1.0.0",
-        help="Версия модели GigaChat"
+        value=st.session_state.gigachat_version,
+        help="Версия модели GigaChat",
     )
+    # Сохраняем чтобы использовать вне sidebar
+    st.session_state.openrouter_model = openrouter_model
+    st.session_state.gigachat_version = gigachat_version
 
-    # Фильтры
-    with st.expander("Фильтры промтов"):
-        col1, col2 = st.columns(2)
-        with col1:
+    # ---------- Фильтры ----------
+    with st.expander("Фильтры", expanded=False):
+
+        # — Даты —
+        st.caption("ПЕРИОД")
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
             date_from = st.date_input("Дата от", value=None)
-        with col2:
+        with col_d2:
             date_to = st.date_input("Дата до", value=None)
+        st.markdown(
+            "<div style='display:flex;gap:8px;margin-top:-8px;"
+            "font-size:0.72rem;color:rgba(150,170,210,0.6)'>"
+            "<span style='flex:1;text-align:center'>Дата от</span>"
+            "<span style='flex:1;text-align:center'>Дата до</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
+        st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
+
+        # — Фильтр по ID —
+        st.caption("ФИЛЬТР ПО ID")
+        id_filter_type = st.radio(
+            "id_type", ["Диапазон", "Список"], horizontal=True, label_visibility="collapsed"
+        )
+        if id_filter_type == "Диапазон":
+            col_id1, col_id2 = st.columns(2)
+            with col_id1:
+                id_from = st.number_input("ID от", min_value=1, value=None, step=1,
+                                          label_visibility="collapsed")
+            with col_id2:
+                id_to = st.number_input("ID до", min_value=1, value=None, step=1,
+                                        label_visibility="collapsed")
+            st.markdown(
+                "<div style='display:flex;gap:8px;margin-top:-8px;"
+                "font-size:0.72rem;color:rgba(150,170,210,0.6)'>"
+                "<span style='flex:1;text-align:center'>ID от</span>"
+                "<span style='flex:1;text-align:center'>ID до</span>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            id_list = None
+        else:
+            id_list_input = st.text_input(
+                "id_list_raw",
+                placeholder="5, 12, 34-56",
+                help="Отдельные ID и диапазоны через дефис",
+                label_visibility="collapsed",
+            )
+            id_list = parse_id_list(id_list_input) if id_list_input else []
+            id_from = None
+            id_to = None
+
+        st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
+
+        # — Тип мутации —
+        st.caption("ТИП МУТАЦИИ")
         mutation_types = [
             "",
             "contextual_obfuscation",
@@ -312,15 +394,80 @@ with st.sidebar:
             "linguistic_obfuscation",
             "token_smuggling",
             "system_mode",
-            "hypothetical_scenario"
+            "hypothetical_scenario",
         ]
-        mutation_type = st.selectbox("Тип мутации", options=mutation_types, index=0)
-        limit = st.number_input("Количество промтов", min_value=1, max_value=1000, value=None, step=1)
+        mutation_type = st.selectbox(
+            "mutation", mutation_types, index=0, label_visibility="collapsed"
+        )
 
-    # Кнопка запуска
-    if st.button("AttacksPromts", use_container_width=True):
-        # Формируем параметры фильтрации
-        filter_params = {}
+        st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
+
+        # — Статус и метка —
+        st.caption("СТАТУС ОБРАБОТКИ")
+        processed_status = st.selectbox(
+            "status",
+            ["unprocessed", "processed", "all"],
+            format_func=lambda x: {
+                "unprocessed": "Только необработанные",
+                "processed":   "Только обработанные",
+                "all":         "Все",
+            }[x],
+            index=0,
+            label_visibility="collapsed",
+        )
+
+        label_filter = None
+        if processed_status != "unprocessed":
+            st.caption("МЕТКА КЛАССИФИКАЦИИ")
+            label_filter = st.selectbox(
+                "label",
+                [None, 0, 1, -1],
+                format_func=lambda x: {
+                    None: "Все",
+                    0:    "Хорошие (label=0)",
+                    1:    "Плохие  (label=1)",
+                    -1:   "Ошибки  (label=-1)",
+                }[x],
+                index=0,
+                label_visibility="collapsed",
+            )
+
+        st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
+
+        # — Лимит и сортировка —
+        st.caption("ЛИМИТ И СОРТИРОВКА")
+        limit = st.number_input(
+            "Максимум промтов", min_value=1, max_value=1000, value=None, step=1
+        )
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            order_by = st.selectbox(
+                "order_by", ["id", "created_at"], index=0, label_visibility="collapsed"
+            )
+        with col_s2:
+            order_direction = st.selectbox(
+                "order_dir",
+                ["asc", "desc"],
+                format_func=lambda x: "↑ Возр." if x == "asc" else "↓ Убыв.",
+                index=0,
+                label_visibility="collapsed",
+            )
+        st.markdown(
+            "<div style='display:flex;gap:8px;margin-top:-8px;"
+            "font-size:0.72rem;color:rgba(150,170,210,0.6)'>"
+            "<span style='flex:1;text-align:center'>Поле</span>"
+            "<span style='flex:1;text-align:center'>Порядок</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ---------- Кнопка запуска ----------
+    if st.button("  ▶  ", use_container_width=True):
+        filter_params = {
+            "processed_status": processed_status,
+            "order_by": order_by,
+            "order_direction": order_direction,
+        }
         if date_from:
             filter_params["date_from"] = date_from.isoformat()
         if date_to:
@@ -329,63 +476,108 @@ with st.sidebar:
             filter_params["mutation_type"] = mutation_type
         if limit:
             filter_params["limit"] = limit
+        if id_from:
+            filter_params["id_from"] = id_from
+        if id_to:
+            filter_params["id_to"] = id_to
+        if id_list:
+            filter_params["id_list"] = id_list
+        if label_filter is not None:
+            filter_params["label_filter"] = label_filter
 
         with st.spinner("Загрузка промтов..."):
             prompts = get_unprocessed_prompts(**filter_params)
 
         if not prompts:
-            st.info("Нет новых промтов для обработки.")
+            st.info("Нет промтов для обработки (с учётом фильтров).")
         else:
             progress_bar = st.progress(0)
             status_text = st.empty()
             successful = []
             failed = []
+            stats = {
+                "total": len(prompts),
+                "success": 0,
+                "errors": 0,
+                "label_0": 0,
+                "label_1": 0,
+                "label_minus1": 0,
+            }
 
             for i, p in enumerate(prompts):
-                status_text.text(f"Обработка {i+1} из {len(prompts)}: {p['mutated_prompt'][:80]}...")
-                response_text = call_gigachat_sync(p['mutated_prompt'])
+                status_text.text(
+                    f"Обработка {i + 1}/{stats['total']}: "
+                    f"ID {p['id']} — {p['mutated_prompt'][:60]}..."
+                )
+                response_text = call_gigachat_sync(p["mutated_prompt"])
+                progress = (i + 1) / stats["total"]
+
                 if not response_text:
-                    failed.append(f"ID {p['id']}: {p['mutated_prompt'][:50]}... (нет ответа GigaChat)")
-                    progress_bar.progress((i+1)/len(prompts))
+                    failed.append(f"ID {p['id']}: {p['mutated_prompt'][:50]}... (нет ответа)")
+                    stats["errors"] += 1
+                    progress_bar.progress(progress)
                     continue
 
                 toxicity = analyze_toxicity(response_text)
                 context = f"Результат анализа токсичности: {toxicity.get('explanation', '')}"
-                similar = retrieve_similar_goals(p['mutated_prompt'], k=3)
+                similar = retrieve_similar_goals(p["mutated_prompt"], k=3)
 
                 label, reason = classify_with_openrouter(
-                    p['mutated_prompt'],
+                    p["mutated_prompt"],
                     response_text,
                     similar,
                     api_key=st.session_state.get("openrouter_api_key", ""),
                     context=context,
-                    model_name=openrouter_model
+                    model_name=st.session_state.openrouter_model,
                 )
 
                 save_classification_result(
-                    prompt_id=p['id'],
-                    mutated_prompt=p['mutated_prompt'],
+                    prompt_id=p["id"],
+                    mutated_prompt=p["mutated_prompt"],
                     gigachat_response=response_text,
                     label=label,
                     reason=reason,
                     toxicity_details=toxicity,
-                    classifier_model=openrouter_model,
-                    gigachat_model_version=gigachat_version
+                    classifier_model=st.session_state.openrouter_model,
+                    gigachat_model_version=st.session_state.gigachat_version,
                 )
-                successful.append(f"ID {p['id']}: {p['mutated_prompt'][:50]}... (метка {label})")
-                progress_bar.progress((i+1)/len(prompts))
+
+                successful.append(
+                    f"ID {p['id']}: {p['mutated_prompt'][:50]}... (метка {label})"
+                )
+                stats["success"] += 1
+                if label == 0:
+                    stats["label_0"] += 1
+                elif label == 1:
+                    stats["label_1"] += 1
+                else:
+                    stats["label_minus1"] += 1
+                progress_bar.progress(progress)
 
             status_text.text("Обработка завершена!")
-            st.success(f"Обработано {len(prompts)} промтов. Успешно: {len(successful)} | Ошибок: {len(failed)}")
+            st.success(f"Обработано: {stats['success']} из {stats['total']}")
+            if stats["errors"]:
+                st.info(f"Ошибок: {stats['errors']}")
+            st.markdown("---")
+            st.subheader("Распределение меток")
+            col_l1, col_l2, col_l3 = st.columns(3)
+            with col_l1:
+                st.metric("✓ 0", stats["label_0"])
+            with col_l2:
+                st.metric("⚠ 1", stats["label_1"])
+            with col_l3:
+                st.metric("⍰ -1", stats["label_minus1"])
+
             with st.expander("Подробности"):
                 if successful:
-                    st.write("Успешно обработаны:")
+                    st.write("Успешно:")
                     for item in successful:
                         st.write(f"- {item}")
                 if failed:
                     st.write("Ошибки:")
                     for item in failed:
                         st.write(f"- {item}")
+
 
 # ---------- Основная область ----------
 st.title("AI-агентная система red teaming и контроль ответов LLM GigaChat")
@@ -395,7 +587,10 @@ st.write("Выберите чат слева или создайте новый.
 if st.session_state.current_session_id not in st.session_state.messages_cache:
     msgs = get_messages(st.session_state.current_session_id)
     formatted = []
-    for user_prompt, assistant_response, label, reason, toxicity_details, classifier_model, gigachat_model_version, ts in msgs:
+    for (
+        user_prompt, assistant_response, label, reason,
+        toxicity_details, classifier_model, gigachat_model_version, ts
+    ) in msgs:
         formatted.append({"role": "user", "content": user_prompt})
         tox = None
         if toxicity_details:
@@ -403,31 +598,30 @@ if st.session_state.current_session_id not in st.session_state.messages_cache:
                 tox = ast.literal_eval(toxicity_details)
             except Exception:
                 tox = None
-        formatted.append(
-            {
-                "role": "assistant",
-                "content": assistant_response,
-                "label": label,
-                "reason": reason,
-                "toxicity": tox,
-                "classifier_model": classifier_model,
-                "gigachat_model_version": gigachat_model_version,
-            }
-        )
+        formatted.append({
+            "role": "assistant",
+            "content": assistant_response,
+            "label": label,
+            "reason": reason,
+            "toxicity": tox,
+            "classifier_model": classifier_model,
+            "gigachat_model_version": gigachat_model_version,
+        })
     st.session_state.messages_cache[st.session_state.current_session_id] = formatted
+
 # ---------- Отображение истории ----------
 for message in st.session_state.messages_cache[st.session_state.current_session_id]:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant":
-            label = message.get("label")
-            reason = message.get("reason", "не указана")
-            if label == 1:
-                st.warning(f"⚠ **Подозрительный ответ**\n\nПричина: {reason}")
-            elif label == 0:
-                st.success(f"✓ **Валидный ответ**\n\nПричина: {reason}")
-            elif label is not None:
-                st.info(f"⍰ Оценка не определена\n\n{reason}")
+            msg_label = message.get("label")
+            msg_reason = message.get("reason", "не указана")
+            if msg_label == 1:
+                st.warning(f"⚠ Подозрительный ответ\n\nПричина: {msg_reason}")
+            elif msg_label == 0:
+                st.success(f"✓ Валидный ответ\n\nПричина: {msg_reason}")
+            elif msg_label is not None:
+                st.info(f"⍰ Оценка не определена\n\n{msg_reason}")
 
             tox = message.get("toxicity")
             if tox and isinstance(tox, dict):
@@ -454,17 +648,15 @@ openrouter_api_key = st.text_input(
 )
 
 if not gigachat_api_key:
-    st.info("Пожалуйста, введите API-ключ GigaChat для продолжения.", icon="🔑")
+    st.info("Введите API-ключ GigaChat")
     st.stop()
 
 if not openrouter_api_key:
-    st.info("Пожалуйста, введите API-ключ OpenRouter для классификатора.", icon="🔑")
+    st.info("Введите API-ключ OpenRouter")
     st.stop()
 
-# Сохраняем openrouter_api_key в session_state для использования в синхронной обработке
 st.session_state.openrouter_api_key = openrouter_api_key
 
-# Сбрасываем токен при смене ключа GigaChat
 if gigachat_api_key != st.session_state.gigachat_api_key:
     st.session_state.gigachat_api_key = gigachat_api_key
     st.session_state.gigachat_token = None
@@ -477,20 +669,22 @@ if prompt := st.chat_input("Введите сообщение..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    api_messages = [{"role": m["role"], "content": m["content"]} for m in current_cache]
+    api_messages = [
+        {"role": m["role"], "content": m["content"]} for m in current_cache
+    ]
 
     with st.chat_message("assistant"):
         full_response, success = call_gigachat(api_messages)
 
     if not success or not full_response.strip():
         current_cache.pop()
-        st.warning("Не удалось получить ответ от GigaChat. Попробуйте ещё раз.")
+        st.warning("Не удалось получить ответ от GigaChat.")
         st.stop()
 
     # Анализ токсичности
     toxicity = {"label": None, "explanation": "Анализ не выполнен"}
     try:
-        with st.spinner("Анализ токсичности..."):
+        with st.spinner("Анализ токсичности"):
             toxicity = analyze_toxicity(full_response)
     except Exception as e:
         st.warning(f"Анализ токсичности не выполнен: {e}")
@@ -500,7 +694,7 @@ if prompt := st.chat_input("Введите сообщение..."):
     # Классификатор
     label, reason = None, "Классификатор не отработал"
     try:
-        with st.spinner("Оценка ответа классификатором (OpenRouter)..."):
+        with st.spinner("Оценка ответа классификатором"):
             similar = retrieve_similar_goals(prompt, k=3)
             label, reason = classify_with_openrouter(
                 prompt,
@@ -508,23 +702,24 @@ if prompt := st.chat_input("Введите сообщение..."):
                 similar,
                 api_key=openrouter_api_key,
                 context=context,
-                model_name=openrouter_model,
+                model_name=st.session_state.openrouter_model,
             )
     except Exception as e:
         st.warning(f"Классификатор не отработал: {e}")
         st.error(traceback.format_exc())
 
-    # Сохранение
-    current_cache.append(
-        {
-            "role": "assistant",
-            "content": full_response,
-            "label": label,
-            "reason": reason,
-            "toxicity": toxicity,
-        }
-    )
+    # Сохранение в кэш
+    current_cache.append({
+        "role": "assistant",
+        "content": full_response,
+        "label": label,
+        "reason": reason,
+        "toxicity": toxicity,
+        "classifier_model": st.session_state.openrouter_model,
+        "gigachat_model_version": st.session_state.gigachat_version,
+    })
 
+    # Сохранение в БД
     save_message(
         session_id=st.session_state.current_session_id,
         user_prompt=prompt,
@@ -532,13 +727,15 @@ if prompt := st.chat_input("Введите сообщение..."):
         label=label,
         reason=reason,
         toxicity_details=toxicity,
+        classifier_model=st.session_state.openrouter_model,
+        gigachat_model_version=st.session_state.gigachat_version,
     )
 
     # Вывод результатов
     if label == 1:
-        st.warning(f"⚠ **Подозрительный ответ**\n\nПричина: {reason}")
+        st.warning(f"⚠ Подозрительный ответ\n\nПричина: {reason}")
     elif label == 0:
-        st.success(f"✓ **Валидный ответ**\n\nПричина: {reason}")
+        st.success(f"✓ Валидный ответ\n\nПричина: {reason}")
     elif label is not None:
         st.info(f"⍰ Оценка не определена\n\n{reason}")
 
