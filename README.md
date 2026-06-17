@@ -1,6 +1,6 @@
-
+<img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/b1616438-0e0d-4862-80f3-03e0b91c9c76" />
 <p align="center">
-  <img src="https://iv.okcdn.ru/getVideoPreview?id=5452620565175&idx=7&type=39&tkn=36MzTht8kCPTjeg2yxrmAasSxSg&fn=vid_u" alt="AI Logo" width="300px" height="120px">
+  <img src="https://logo-teka.com/wp-content/uploads/2025/07/gigachat-horizontal-logo.png" alt="AI Logo" width="640px" height="360px">
   
 </p>
 <h1 align="center"> AI-агентная система red teaming и контроль ответов LLM «ГигаЧат» </h1>
