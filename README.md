@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://logo-teka.com/wp-content/uploads/2025/07/gigachat-horizontal-logo.png" alt="AI Logo" width="640px" height="360px">
+  <img src="https://logo-teka.com/wp-content/uploads/2025/07/gigachat-horizontal-logo.png" alt="AI Logo" width="480px" height="270px">
   
 </p>
 <h1 align="center"> AI-агентная система red teaming и контроль ответов LLM «ГигаЧат» </h1>
