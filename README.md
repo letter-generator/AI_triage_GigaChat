@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="https://iv.okcdn.ru/getVideoPreview?id=5452620565175&idx=7&type=39&tkn=36MzTht8kCPTjeg2yxrmAasSxSg&fn=vid_u" alt="AI Logo" width="500px" height="80px">
+  <img src="https://iv.okcdn.ru/getVideoPreview?id=5452620565175&idx=7&type=39&tkn=36MzTht8kCPTjeg2yxrmAasSxSg&fn=vid_u" alt="AI Logo" width="300px" height="120px">
   
 </p>
 <h1 align="center"> AI-агентная система red teaming и контроль ответов LLM «ГигаЧат» </h1>
