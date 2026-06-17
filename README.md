@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="https://img.icons8.com/color/96/000000/artificial-intelligence.png" alt="AI Logo" width="80px" height="80px">
+  <img src="https://www.sberbank.ru/images/24107/1764835910963.png" alt="AI Logo" width="80px" height="80px">
   
 </p>
 <h1 align="center"> AI-агентная система red teaming и контроль ответов LLM «ГигаЧат» </h1>
