@@ -244,7 +244,6 @@ python classifier/build_index_doc.py</code></pre>
 
 <p>
   <strong>Куратор проекта:</strong> Домуховский Николай Анатольевич (ПАО Сбербанк)
-  [Google](https://google.com)
 
 </p>
 
